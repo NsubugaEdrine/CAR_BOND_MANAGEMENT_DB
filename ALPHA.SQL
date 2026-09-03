@@ -1,6 +1,7 @@
-CREATE DATABASE ALPHA_MOTORS;
+CREATE DATABASE alpha_motors
+    DEFAULT CHARACTER SET = 'utf8mb4';
 
-USE ALPHA_MOTORS;
+USE alpha_motors;
 
 -- =============================================
 -- TABLE CREATION
@@ -8,411 +9,321 @@ USE ALPHA_MOTORS;
 
 -- 1. EMPLOYEE TABLE
 CREATE TABLE EMPLOYEE (
-    employee_id INT PRIMARY KEY,
-    first_name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50) NOT NULL,
-    role VARCHAR(50) NOT NULL,
-    phone VARCHAR(50) NOT NULL,
-    email VARCHAR(100) NOT NULL
+    employee_id     INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    first_name      VARCHAR(80) NOT NULL,
+    last_name       VARCHAR(80) NOT NULL,
+    role            VARCHAR(60) NOT NULL,
+    phone           VARCHAR(30),
+    email           VARCHAR(150)
 );
 
 -- 2. CUSTOMER TABLE (Supertype)
 CREATE TABLE CUSTOMER (
-    customer_id INT PRIMARY KEY,
-    first_name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50) NOT NULL,
-    phone VARCHAR(50) NOT NULL,
-    email VARCHAR(100) NOT NULL,
-    address TEXT,
-    id_number VARCHAR(50)
-);
-
--- 3. ADDRESS TABLE
-CREATE TABLE ADDRESS (
-    address_id INT PRIMARY KEY,
-    customer_id INT NOT NULL,
-    street VARCHAR(100) NOT NULL,
-    city VARCHAR(50) NOT NULL,
-    state VARCHAR(50) NOT NULL,
-    zip_code VARCHAR(10) NOT NULL,
-    FOREIGN KEY (customer_id) REFERENCES CUSTOMER(customer_id)
+    customer_id     INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    first_name      VARCHAR(80) NOT NULL,
+    last_name       VARCHAR(80),
+    phone           VARCHAR(30),
+    email           VARCHAR(150),
+    address         VARCHAR(255),
+    id_number       VARCHAR(50) NOT NULL,
+    customer_type   ENUM('Individual', 'Corporate', 'Reseller') NOT NULL,
+    UNIQUE KEY uq_customer_id_number (id_number)
 );
 
 -- 4. INDIVIDUAL_CUSTOMER TABLE (Subtype)
 CREATE TABLE INDIVIDUAL_CUSTOMER (
-    customer_id INT PRIMARY KEY,
-    date_of_birth DATE NOT NULL,
-    occupation VARCHAR(50),
-    CONSTRAINT fk_ind_customer FOREIGN KEY (customer_id) REFERENCES CUSTOMER(customer_id)
+    customer_id     INT UNSIGNED PRIMARY KEY,
+    date_of_birth   DATE,
+    occupation      VARCHAR(100),
+    CONSTRAINT fk_indiv_customer
+        FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- 5. CORPORATE_CUSTOMER TABLE (Subtype)
 CREATE TABLE CORPORATE_CUSTOMER (
-    customer_id INT PRIMARY KEY,
-    company_name VARCHAR(100) NOT NULL,
-    tax_id VARCHAR(50) NOT NULL,
-    company_reg_number VARCHAR(50) NOT NULL,
-    CONSTRAINT fk_corp_customer FOREIGN KEY (customer_id) REFERENCES CUSTOMER(customer_id)
+    customer_id         INT UNSIGNED PRIMARY KEY,
+    company_name        VARCHAR(150) NOT NULL,
+    tax_id               VARCHAR(50),
+    company_reg_number  VARCHAR(50),
+    CONSTRAINT fk_corp_customer
+        FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- 6. RESELLER_CUSTOMER TABLE (Subtype)
 CREATE TABLE RESELLER_CUSTOMER (
-    customer_id INT PRIMARY KEY,
-    business_license_no VARCHAR(50) NOT NULL,
-    resale_permit_no VARCHAR(50) NOT NULL,
-    CONSTRAINT fk_reseller_customer FOREIGN KEY (customer_id) REFERENCES CUSTOMER(customer_id)
+    customer_id         INT UNSIGNED PRIMARY KEY,
+    business_license_no VARCHAR(50),
+    resale_permit_no    VARCHAR(50),
+    CONSTRAINT fk_reseller_customer
+        FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- 7. AGENCY TABLE
 CREATE TABLE AGENCY (
-    agency_id INT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    type VARCHAR(50) NOT NULL,
-    contact_info TEXT NOT NULL
+    agency_id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(150) NOT NULL,
+    type            ENUM('URA', 'MinistryOfWorksAndTransport', 'PoliceInterpol', 'Bank', 'Other') NOT NULL,
+    contact_info    VARCHAR(255)
 );
 
 -- 8. SUPPLIER TABLE
 CREATE TABLE SUPPLIER (
-    supplier_id INT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    contact_person VARCHAR(100) NOT NULL,
-    phone VARCHAR(50) NOT NULL,
-    email VARCHAR(100) NOT NULL,
-    address TEXT NOT NULL,
-    country VARCHAR(50) NOT NULL
+    supplier_id     INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(150) NOT NULL,
+    contact_person  VARCHAR(150),
+    phone           VARCHAR(30),
+    email           VARCHAR(150),
+    address         VARCHAR(255),
+    country         VARCHAR(100)
 );
 
 -- 9. VEHICLE TABLE (Supertype)
 CREATE TABLE VEHICLE (
-    vehicle_id INT PRIMARY KEY,
-    vin VARCHAR(50) NOT NULL,
-    make VARCHAR(50) NOT NULL,
-    model VARCHAR(50) NOT NULL,
-    vehicle_year INT NOT NULL,
-    cost_price DECIMAL(12, 2) NOT NULL,
-    selling_price DECIMAL(12, 2) NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    supplier_id INT NOT NULL,
-    CONSTRAINT fk_vehicle_supplier FOREIGN KEY (supplier_id) REFERENCES SUPPLIER(supplier_id)
-);
+    vehicle_id      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    vin             VARCHAR(17) NOT NULL,
+    make            VARCHAR(60) NOT NULL,
+    model           VARCHAR(60) NOT NULL,
+    year            SMALLINT UNSIGNED NOT NULL,
+    color           VARCHAR(40),
+    cost_price      DECIMAL(14,2) NOT NULL,
+    selling_price   DECIMAL(14,2) NOT NULL,
+    status          ENUM('Available', 'Reserved', 'Sold', 'InTransit') NOT NULL DEFAULT 'InTransit',
+    date_received   DATE NOT NULL,
+    supplier_id     INT UNSIGNED NOT NULL,
+    -- discriminator: enforced disjoint/total by trg_vehicle_* triggers below
+    vehicle_type    ENUM('New', 'Used') NOT NULL,
+    UNIQUE KEY uq_vehicle_vin (vin),
+    CONSTRAINT fk_vehicle_supplier
+        FOREIGN KEY (supplier_id) REFERENCES supplier(supplier_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT);
+
+CREATE INDEX idx_vehicle_supplier ON vehicle(supplier_id);
+CREATE INDEX idx_vehicle_status   ON vehicle(status);
 
 -- 10. NEW_VEHICLE TABLE (Subtype)
 CREATE TABLE NEW_VEHICLE (
-    vehicle_id INT PRIMARY KEY,
-    warranty_period VARCHAR(50) NOT NULL,
-    dealer_invoice_no VARCHAR(50) NOT NULL,
-    CONSTRAINT fk_new_vehicle FOREIGN KEY (vehicle_id) REFERENCES VEHICLE(vehicle_id)
+    vehicle_id       INT UNSIGNED PRIMARY KEY,
+    warranty_period  VARCHAR(50),
+    dealer_invoice_no VARCHAR(50),
+    CONSTRAINT fk_new_vehicle
+        FOREIGN KEY (vehicle_id) REFERENCES vehicle(vehicle_id)
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- 11. USED_VEHICLE TABLE (Subtype)
 CREATE TABLE USED_VEHICLE (
-    vehicle_id INT PRIMARY KEY,
-    mileage INT NOT NULL,
-    previous_owners INT NOT NULL,
-    condition_grade VARCHAR(20) NOT NULL,
-    CONSTRAINT fk_used_vehicle FOREIGN KEY (vehicle_id) REFERENCES VEHICLE(vehicle_id)
+    vehicle_id       INT UNSIGNED PRIMARY KEY,
+    mileage          INT UNSIGNED,
+    previous_owners  TINYINT UNSIGNED,
+    condition_grade  VARCHAR(20),
+    CONSTRAINT fk_used_vehicle
+        FOREIGN KEY (vehicle_id) REFERENCES vehicle(vehicle_id)
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- 12. SALE TABLE
 CREATE TABLE SALE (
-    sale_id INT PRIMARY KEY,
-    sale_date DATE NOT NULL,
-    total_price DECIMAL(12, 2) NOT NULL,
-    payment_terms VARCHAR(50) NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    vehicle_id INT NOT NULL,
-    customer_id INT NOT NULL,
-    employee_id INT NOT NULL,
-    CONSTRAINT fk_sale_vehicle FOREIGN KEY (vehicle_id) REFERENCES VEHICLE(vehicle_id),
-    CONSTRAINT fk_sale_customer FOREIGN KEY (customer_id) REFERENCES CUSTOMER(customer_id),
-    CONSTRAINT fk_sale_employee FOREIGN KEY (employee_id) REFERENCES EMPLOYEE(employee_id)
+    sale_id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    sale_date       DATE NOT NULL,
+    total_price     DECIMAL(14,2) NOT NULL,
+    payment_terms   ENUM('FullCash', 'Instalment', 'BankLoan') NOT NULL,
+    status          ENUM('Pending', 'Completed', 'Cancelled') NOT NULL DEFAULT 'Pending',
+    vehicle_id      INT UNSIGNED NOT NULL,
+    customer_id     INT UNSIGNED NOT NULL,
+    employee_id     INT UNSIGNED NOT NULL,
+    CONSTRAINT fk_sale_vehicle
+        FOREIGN KEY (vehicle_id) REFERENCES vehicle(vehicle_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_sale_customer
+        FOREIGN KEY (customer_id) REFERENCES customer(customer_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_sale_employee
+        FOREIGN KEY (employee_id) REFERENCES employee(employee_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT
 );
+
+CREATE INDEX idx_sale_vehicle  ON sale(vehicle_id);
+CREATE INDEX idx_sale_customer ON sale(customer_id);
+CREATE INDEX idx_sale_employee ON sale(employee_id);
+CREATE INDEX idx_sale_status   ON sale(status);
 
 -- 13. PAYMENT TABLE
 CREATE TABLE PAYMENT (
-    payment_id INT PRIMARY KEY,
-    payment_date DATE NOT NULL,
-    amount DECIMAL(12, 2) NOT NULL,
-    method VARCHAR(50) NOT NULL,
-    reference_number VARCHAR(50) NOT NULL,
-    sale_id INT NOT NULL,
-    CONSTRAINT fk_payment_sale FOREIGN KEY (sale_id) REFERENCES SALE(sale_id)
+    payment_id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    payment_date     DATE NOT NULL,
+    amount           DECIMAL(14,2) NOT NULL,
+    method           ENUM('Cash', 'BankTransfer', 'MobileMoney', 'Cheque', 'LoanDisbursement') NOT NULL,
+    reference_number VARCHAR(60),
+    sale_id          INT UNSIGNED NOT NULL,
+    CONSTRAINT fk_payment_sale
+        FOREIGN KEY (sale_id) REFERENCES sale(sale_id)
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
+
+CREATE INDEX idx_payment_sale ON payment(sale_id);
 
 -- 14. COMPLIANCE_CHECK TABLE
 CREATE TABLE COMPLIANCE_CHECK (
-    check_id INT PRIMARY KEY,
-    check_date DATE NOT NULL,
-    check_type VARCHAR(50) NOT NULL,
-    result VARCHAR(50) NOT NULL,
-    remarks TEXT,
-    vehicle_id INT NOT NULL,
-    agency_id INT NOT NULL,
-    CONSTRAINT fk_check_vehicle FOREIGN KEY (vehicle_id) REFERENCES VEHICLE(vehicle_id),
-    CONSTRAINT fk_check_agency FOREIGN KEY (agency_id) REFERENCES AGENCY(agency_id)
+    check_id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    check_date      DATE NOT NULL,
+    check_type      ENUM('TaxAssessment', 'PoliceInterpolVerification', 'Registration') NOT NULL,
+    result          ENUM('Pending', 'Cleared', 'Failed') NOT NULL DEFAULT 'Pending',
+    remarks         VARCHAR(255),
+    vehicle_id      INT UNSIGNED NOT NULL,
+    agency_id       INT UNSIGNED NOT NULL,
+    CONSTRAINT fk_compliance_vehicle
+        FOREIGN KEY (vehicle_id) REFERENCES vehicle(vehicle_id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_compliance_agency
+        FOREIGN KEY (agency_id) REFERENCES agency(agency_id)
+        ON UPDATE CASCADE ON DELETE RESTRICT
 );
+
+CREATE INDEX idx_compliance_vehicle ON compliance_check(vehicle_id);
+CREATE INDEX idx_compliance_agency  ON compliance_check(agency_id);
 
 -- =============================================
 -- SAMPLE DATA INSERTION
 -- =============================================
 
 -- EMPLOYEE
-INSERT INTO EMPLOYEE VALUES (1, 'John', 'Mwangi', 'Sales Manager', '0712345678', 'john.mwangi@alphamotors.co.ke');
-INSERT INTO EMPLOYEE VALUES (2, 'Alice', 'Wanjiku', 'Sales Executive', '0723456789', 'alice.wanjiku@alphamotors.co.ke');
-INSERT INTO EMPLOYEE VALUES (3, 'Peter', 'Otieno', 'Compliance Officer', '0734567890', 'peter.otieno@alphamotors.co.ke');
-INSERT INTO EMPLOYEE VALUES (4, 'Grace', 'Njeri', 'Accountant', '0745678901', 'grace.njeri@alphamotors.co.ke');
-INSERT INTO EMPLOYEE VALUES (5, 'David', 'Kamau', 'Mechanic', '0756789012', 'david.kamau@alphamotors.co.ke');
+INSERT INTO employee (first_name, last_name, role, phone, email) VALUES
+('Alveen',   'Mutebi',    'Sales Executive',      '+256772000001', 'alveen.mutebi@alphamotors.co.ug'),
+('Joan',     'Asango',    'Sales Executive',      '+256772000002', 'joan.asango@alphamotors.co.ug'),
+('Stephen',  'Piramoe',   'Yard Manager',         '+256772000003', 'stephen.piramoe@alphamotors.co.ug'),
+('Lawrence', 'Kideganono','Compliance Officer',   '+256772000004', 'lawrence.k@alphamotors.co.ug'),
+('Edrine',   'Nsubuga',   'Accountant',           '+256772000005', 'edrine.nsubuga@alphamotors.co.ug'),
+('Diana',    'Atugonza',  'Sales Executive',      '+256772000006', 'diana.atugonza@alphamotors.co.ug'),
+('Caleb',    'Kironde',   'Yard Attendant',       '+256772000007', 'caleb.kironde@alphamotors.co.ug'),
+('Ernest',   'Ntare',     'Sales Manager',        '+256772000008', 'ernest.ntare@alphamotors.co.ug'),
+('Arnold',   'Mulembeke', 'Compliance Officer',   '+256772000009', 'arnold.mulembeke@alphamotors.co.ug'),
+('Grace',    'Achieng',   'Accountant',           '+256772000010', 'grace.achieng@alphamotors.co.ug');
 
 -- CUSTOMER
-INSERT INTO CUSTOMER VALUES (1, 'Samuel', 'Kipchoge', '0710001111', 'samuel.k@gmail.com', '123 Nairobi Rd', 'ID001');
-INSERT INTO CUSTOMER VALUES (2, 'Mary', 'Akinyi', '0720002222', 'mary.a@gmail.com', '456 Kisumu Ave', 'ID002');
-INSERT INTO CUSTOMER VALUES (3, 'James', 'Mutua', '0730003333', 'james.m@corp.co.ke', '789 Mombasa St', 'ID003');
-INSERT INTO CUSTOMER VALUES (4, 'Faith', 'Wambui', '0740004444', 'faith.w@reseller.co.ke', '321 Eldoret Ln', 'ID004');
-INSERT INTO CUSTOMER VALUES (5, 'Brian', 'Ochieng', '0750005555', 'brian.o@gmail.com', '654 Nakuru Dr', 'ID005');
-
--- ADDRESS
-INSERT INTO ADDRESS VALUES (1, 1, '123 Nairobi Rd', 'Nairobi', 'Nairobi', '00100');
-INSERT INTO ADDRESS VALUES (2, 2, '456 Kisumu Ave', 'Kisumu', 'Kisumu', '40100');
-INSERT INTO ADDRESS VALUES (3, 3, '789 Mombasa St', 'Mombasa', 'Mombasa', '80100');
-INSERT INTO ADDRESS VALUES (4, 4, '321 Eldoret Ln', 'Eldoret', 'Uasin Gishu', '30100');
-INSERT INTO ADDRESS VALUES (5, 5, '654 Nakuru Dr', 'Nakuru', 'Nakuru', '20100');
-
+INSERT INTO customer (first_name, last_name, phone, email, address, id_number, customer_type) VALUES
+('Samuel',  'Kaggwa',   '+256782100001', 'samuel.kaggwa@gmail.com',   'Ntinda, Kampala',       'CM88012345AB1A', 'Individual'),
+('Patricia','Nabirye',  '+256782100002', 'patricia.nab@gmail.com',    'Kansanga, Kampala',     'CF90034567CD2B', 'Individual'),
+('Moses',   'Okello',   '+256782100003', 'moses.okello@yahoo.com',    'Jinja Road, Jinja',     'CM85076543EF3C', 'Individual'),
+('Sarah',   'Nakato',   '+256782100004', 'sarah.nakato@gmail.com',    'Mbarara Town',          'CF93021987GH4D', 'Individual'),
+('Kampala Logistics Ltd',   NULL, '+256414200005', 'procurement@kampalalogistics.co.ug', 'Industrial Area, Kampala', 'CORP-REG-00123', 'Corporate'),
+('Nile Breweries Fleet',    NULL, '+256414200006', 'fleet@nilebreweries.co.ug',           'Jinja Industrial Zone',    'CORP-REG-00456', 'Corporate'),
+('Mbarara Farmers SACCO',   NULL, '+256485200007', 'admin@mbarararsacco.co.ug',           'Mbarara Town Centre',      'CORP-REG-00789', 'Corporate'),
+('Deo',     'Ssemakula','+256782100008', 'deo.ssemakula@gmail.com',   'Kikuubo, Kampala',      'CM87098765IJ5E', 'Reseller'),
+('Winnie',  'Auma',     '+256782100009', 'winnie.auma@gmail.com',     'Gulu Town',             'CF91045678KL6F', 'Reseller'),
+('Hassan',  'Mubiru',   '+256782100010', 'hassan.mubiru@gmail.com',   'Kibuye, Kampala',       'CM89056789MN7G', 'Reseller');
+ 
 -- INDIVIDUAL_CUSTOMER
-INSERT INTO INDIVIDUAL_CUSTOMER VALUES (1, '1990-05-15', 'Engineer');
-INSERT INTO INDIVIDUAL_CUSTOMER VALUES (2, '1985-08-22', 'Doctor');
-INSERT INTO INDIVIDUAL_CUSTOMER VALUES (5, '1992-11-30', 'Teacher');
+INSERT INTO individual_customer (customer_id, date_of_birth, occupation) VALUES
+(1, '1988-01-15', 'Civil Engineer'),
+(2, '1990-03-22', 'Bank Teller'),
+(3, '1985-07-08', 'Teacher'),
+(4, '1993-02-19', 'Nurse');
 
 -- CORPORATE_CUSTOMER
-INSERT INTO CORPORATE_CUSTOMER VALUES (3, 'Mutua Enterprises Ltd', 'TAX123456', 'REG789012');
-
+INSERT INTO corporate_customer (customer_id, company_name, tax_id, company_reg_number) VALUES
+(5, 'Kampala Logistics Ltd',  'TIN1000123456', 'CORP-REG-00123'),
+(6, 'Nile Breweries Fleet',   'TIN1000456789', 'CORP-REG-00456'),
+(7, 'Mbarara Farmers SACCO',  'TIN1000789012', 'CORP-REG-00789');
+ 
 -- RESELLER_CUSTOMER
-INSERT INTO RESELLER_CUSTOMER VALUES (4, 'BL987654', 'RP456789');
-
+INSERT INTO reseller_customer (customer_id, business_license_no, resale_permit_no) VALUES
+(8,  'BL-KLA-004521', 'RP-2026-0088'),
+(9,  'BL-GLU-002210', 'RP-2026-0091'),
+(10, 'BL-KLA-004977', 'RP-2026-0104');
+ 
 -- AGENCY
-INSERT INTO AGENCY VALUES (1, 'NTSA', 'Government', '020-2223333');
-INSERT INTO AGENCY VALUES (2, 'KEBS', 'Regulatory', '020-3334444');
-INSERT INTO AGENCY VALUES (3, 'County Government', 'Local Authority', '020-4445555');
+INSERT INTO agency (name, type, contact_info) VALUES
+('Uganda Revenue Authority - Nakawa',        'URA',                         'nakawa@ura.go.ug'),
+('Uganda Revenue Authority - Malaba',        'URA',                         'malaba@ura.go.ug'),
+('Ministry of Works and Transport - Kampala','MinistryOfWorksAndTransport', 'kampala@works.go.ug'),
+('Ministry of Works and Transport - Mukono', 'MinistryOfWorksAndTransport', 'mukono@works.go.ug'),
+('Uganda Police - CIID Vehicle Theft Unit',  'PoliceInterpol',              'ciid@upf.go.ug'),
+('INTERPOL National Central Bureau Kampala', 'PoliceInterpol',              'ncb@interpol.go.ug'),
+('Stanbic Bank Uganda - Asset Finance',      'Bank',                        'assetfinance@stanbic.co.ug'),
+('DFCU Bank - Motor Loans Desk',             'Bank',                        'motorloans@dfcugroup.com'),
+('UAP Old Mutual Insurance',                 'Other',                       'motor@uap-oldmutual.co.ug'),
+('Uganda Bureau of Standards',               'Other',                      'info@unbs.go.ug');
 
 -- SUPPLIER
-INSERT INTO SUPPLIER VALUES (1, 'Toyota Kenya', 'Joseph Maina', '0711111111', 'sales@toyotakenya.co.ke', 'Industrial Area, Nairobi', 'Kenya');
-INSERT INTO SUPPLIER VALUES (2, 'Honda Japan', 'Takeshi Yamamoto', '+81-3-12345678', 'export@honda.co.jp', 'Tokyo, Minato', 'Japan');
-INSERT INTO SUPPLIER VALUES (3, 'Ford USA', 'Michael Smith', '+1-555-1234567', 'fleet@ford.com', 'Dearborn, Michigan', 'USA');
-INSERT INTO SUPPLIER VALUES (4, 'Mercedes Germany', 'Hans Mueller', '+49-30-9876543', 'sales@mercedes.de', 'Stuttgart', 'Germany');
+INSERT INTO supplier (name, contact_person, phone, email, address, country) VALUES
+('Bex Auto Traders',        'Kenji Watanabe',  '+256701000001', 'kenji@bexauto.co.jp',      'Yokohama Port Yard 4',        'Japan'),
+('IBC Japan Motors',        'Haruto Sato',      '+256701000002', 'haruto@ibcjapan.com',      'Nagoya Export Terminal',      'Japan'),
+('Southern Cross Imports',  'Michael Turner',   '+256701000003', 'mturner@southerncross.co.za', 'Durban Harbour Rd 12',    'South Africa'),
+('Kampala Motors Direct',   'Ronald Kato',      '+256701000004', 'ronald@kmdirect.co.ug',    'Nakawa Industrial Area',      'Uganda'),
+('Dubai Auto Auctions FZE', 'Ahmed Al-Farsi',   '+971501000005', 'ahmed@dubaiauto.ae',       'Jebel Ali Free Zone',         'UAE'),
+('Osaka Fair Deal Motors',  'Yuki Tanaka',      '+256701000006', 'yuki@osakafairdeal.jp',    'Osaka Bay Terminal 2',        'Japan'),
+('Thika Road Auto Ltd',     'Peter Njoroge',    '+256701000007', 'peter@thikaroadauto.co.ke', 'Thika Road Depot',           'Kenya'),
+('Nagano Vehicle Exports',  'Sota Yamamoto',    '+256701000008', 'sota@naganoexports.jp',    'Nagano Prefecture Depot',     'Japan'),
+('Mombasa Freight Motors',  'James Otieno',     '+256701000009', 'james@mombasafreight.co.ke', 'Mombasa Port Warehouse 7',  'Kenya'),
+('Local Trade-In Sellers',  'Grace Namuli',     '+256701000010', 'grace@localtrade.co.ug',   'Bakuli Yard Office',          'Uganda');
 
 -- VEHICLE
-INSERT INTO VEHICLE VALUES (1, 'VIN001', 'Toyota', 'Corolla', 2024, 2500000.00, 3200000.00, 'Available', 1);
-INSERT INTO VEHICLE VALUES (2, 'VIN002', 'Honda', 'Civic', 2023, 2800000.00, 3500000.00, 'Available', 2);
-INSERT INTO VEHICLE VALUES (3, 'VIN003', 'Ford', 'Ranger', 2022, 3500000.00, 4200000.00, 'Sold', 3);
-INSERT INTO VEHICLE VALUES (4, 'VIN004', 'Toyota', 'Land Cruiser', 2021, 8000000.00, 9500000.00, 'Sold', 1);
-INSERT INTO VEHICLE VALUES (5, 'VIN005', 'Mercedes', 'C-Class', 2024, 6000000.00, 7200000.00, 'Available', 4);
-INSERT INTO VEHICLE VALUES (6, 'VIN006', 'Honda', 'CR-V', 2020, 2200000.00, 2800000.00, 'Available', 2);
-INSERT INTO VEHICLE VALUES (7, 'VIN007', 'Ford', 'Escape', 2019, 1800000.00, 2300000.00, 'Sold', 3);
-INSERT INTO VEHICLE VALUES (8, 'VIN008', 'Toyota', 'Prado', 2023, 7500000.00, 8800000.00, 'Available', 1);
-
+INSERT INTO vehicle (vin, make, model, year, color, cost_price, selling_price, status, date_received, supplier_id, vehicle_type) VALUES
+('JT2BF22K1W0123451', 'Toyota',    'Hilux',       2026, 'White',  95000000.00, 118000000.00, 'InTransit', '2026-06-01', 4, 'New'),
+('JHMFA1F5XCS123452', 'Honda',     'CR-V',        2025, 'Silver', 78000000.00, 96000000.00,  'InTransit', '2026-06-05', 1, 'New'),
+('KMHDU46D08U123453', 'Hyundai',   'Tucson',      2026, 'Black',  70000000.00, 88000000.00,  'InTransit', '2026-06-10', 5, 'New'),
+('JN1TANT31U0123454', 'Nissan',    'X-Trail',     2025, 'Blue',   65000000.00, 82000000.00,  'Available', '2026-06-12', 2, 'New'),
+('WVWZZZ1KZAW123455', 'Volkswagen','Tiguan',      2026, 'Grey',   88000000.00, 109000000.00, 'Available', '2026-06-15', 3, 'New'),
+('JTMBK31V486123456', 'Toyota',    'RAV4',        2018, 'Pearl',  38000000.00, 52000000.00,  'Available', '2026-05-01', 6, 'Used'),
+('JHMCM82633C123457', 'Honda',     'Fit',         2016, 'Red',    18000000.00, 27000000.00,  'Available', '2026-05-04', 7, 'Used'),
+('JN1BJ1CV5AT123458', 'Nissan',    'Note',        2017, 'White',  16000000.00, 24000000.00,  'Available', '2026-05-09', 8, 'Used'),
+('KNAFU4A25A5123459', 'Kia',       'Sportage',    2015, 'Black',  25000000.00, 36000000.00,  'Available', '2026-05-14', 9, 'Used'),
+('JTEBU14R170123460', 'Toyota',    'Land Cruiser Prado', 2014, 'Silver', 55000000.00, 72000000.00, 'Available', '2026-05-20', 10, 'Used');
 -- NEW_VEHICLE
-INSERT INTO NEW_VEHICLE VALUES (1, '3 Years', 'DI2024001');
-INSERT INTO NEW_VEHICLE VALUES (2, '3 Years', 'DI2023001');
-INSERT INTO NEW_VEHICLE VALUES (5, '4 Years', 'DI2024002');
-INSERT INTO NEW_VEHICLE VALUES (8, '3 Years', 'DI2023002');
+INSERT INTO new_vehicle (vehicle_id, warranty_period, dealer_invoice_no) VALUES
+(1, '3 years / 100,000 km', 'INV-JP-889011'),
+(2, '3 years / 100,000 km', 'INV-JP-889012'),
+(3, '5 years / 150,000 km', 'INV-AE-889013'),
+(4, '3 years / 100,000 km', 'INV-JP-889014'),
+(5, '4 years / 120,000 km', 'INV-ZA-889015');
+ 
 
 -- USED_VEHICLE
-INSERT INTO USED_VEHICLE VALUES (3, 45000, 2, 'A');
-INSERT INTO USED_VEHICLE VALUES (4, 78000, 1, 'B+');
-INSERT INTO USED_VEHICLE VALUES (6, 62000, 3, 'B');
-INSERT INTO USED_VEHICLE VALUES (7, 95000, 2, 'C+');
-
+INSERT INTO used_vehicle (vehicle_id, mileage, previous_owners, condition_grade) VALUES
+(6,  62000, 1, 'A'),
+(7,  91000, 2, 'B'),
+(8,  74000, 1, 'A'),
+(9,  108000, 2, 'B'),
+(10, 130000, 3, 'C');
+ 
 -- SALE
-INSERT INTO SALE VALUES (1, '2024-01-15', 3200000.00, 'Full Payment', 'Completed', 1, 1, 2);
-INSERT INTO SALE VALUES (2, '2024-02-20', 4200000.00, 'Installment', 'Completed', 3, 3, 1);
-INSERT INTO SALE VALUES (3, '2024-03-10', 9500000.00, 'Full Payment', 'Completed', 4, 3, 2);
-INSERT INTO SALE VALUES (4, '2024-04-05', 2300000.00, 'Installment', 'Completed', 7, 5, 1);
-INSERT INTO SALE VALUES (5, '2024-05-18', 3500000.00, 'Full Payment', 'Completed', 2, 2, 2);
-
+INSERT INTO sale (sale_date, total_price, payment_terms, status, vehicle_id, customer_id, employee_id) VALUES
+('2026-07-01', 118000000.00, 'FullCash',   'Completed', 1,  1, 1),
+('2026-07-03', 96000000.00,  'BankLoan',   'Completed', 2,  5, 2),
+('2026-07-05', 88000000.00,  'FullCash',   'Completed', 3,  8, 1),
+('2026-07-08', 82000000.00,  'Instalment', 'Pending',   4,  2, 6),
+('2026-07-10', 109000000.00, 'BankLoan',   'Pending',   5,  6, 8),
+('2026-07-12', 52000000.00,  'Instalment', 'Pending',   6,  3, 2),
+('2026-07-14', 27000000.00,  'FullCash',   'Pending',   7,  9, 6),
+('2026-07-16', 24000000.00,  'Instalment', 'Pending',   8,  4, 1),
+('2026-07-18', 36000000.00,  'FullCash',   'Cancelled', 9,  10, 8),
+('2026-07-20', 72000000.00,  'Instalment', 'Pending',   10, 7, 2);
+ 
 -- PAYMENT
-INSERT INTO PAYMENT VALUES (1, '2024-01-15', 3200000.00, 'Bank Transfer', 'REF001', 1);
-INSERT INTO PAYMENT VALUES (2, '2024-02-20', 2100000.00, 'Bank Transfer', 'REF002', 2);
-INSERT INTO PAYMENT VALUES (3, '2024-03-15', 2100000.00, 'Bank Transfer', 'REF003', 2);
-INSERT INTO PAYMENT VALUES (4, '2024-03-10', 9500000.00, 'Cheque', 'REF004', 3);
-INSERT INTO PAYMENT VALUES (5, '2024-04-05', 1150000.00, 'Cash', 'REF005', 4);
-INSERT INTO PAYMENT VALUES (6, '2024-05-05', 1150000.00, 'Cash', 'REF006', 4);
-INSERT INTO PAYMENT VALUES (7, '2024-05-18', 3500000.00, 'M-Pesa', 'REF007', 5);
-
+INSERT INTO payment (payment_date, amount, method, reference_number, sale_id) VALUES
+('2026-07-01', 118000000.00, 'Cash',             'PMT-000001', 1),
+('2026-07-03', 96000000.00,  'LoanDisbursement', 'PMT-000002', 2),
+('2026-07-05', 88000000.00,  'BankTransfer',     'PMT-000003', 3),
+('2026-07-08', 20000000.00,  'MobileMoney',      'PMT-000004', 4),
+('2026-07-22', 20000000.00,  'MobileMoney',      'PMT-000005', 4),
+('2026-07-12', 15000000.00,  'Cash',             'PMT-000006', 6),
+('2026-07-26', 10000000.00,  'BankTransfer',     'PMT-000007', 6),
+('2026-07-16', 6000000.00,   'MobileMoney',      'PMT-000008', 8),
+('2026-07-20', 25000000.00,  'Cash',             'PMT-000009', 10),
+('2026-08-03', 15000000.00,  'MobileMoney',      'PMT-000010', 10);
+ 
 -- COMPLIANCE_CHECK
-INSERT INTO COMPLIANCE_CHECK VALUES (1, '2024-01-10', 'Inspection', 'Pass', 'Vehicle in good condition', 1, 1);
-INSERT INTO COMPLIANCE_CHECK VALUES (2, '2024-02-15', 'Emissions Test', 'Pass', 'Within acceptable limits', 2, 2);
-INSERT INTO COMPLIANCE_CHECK VALUES (3, '2024-02-18', 'Inspection', 'Pass', 'Minor scratches noted', 3, 1);
-INSERT INTO COMPLIANCE_CHECK VALUES (4, '2024-03-05', 'Emissions Test', 'Fail', 'Exceeds emission standards', 6, 2);
-INSERT INTO COMPLIANCE_CHECK VALUES (5, '2024-03-08', 'Inspection', 'Pass', 'Excellent condition', 4, 3);
-INSERT INTO COMPLIANCE_CHECK VALUES (6, '2024-04-01', 'Registration', 'Pass', 'Documents verified', 7, 3);
-INSERT INTO COMPLIANCE_CHECK VALUES (7, '2024-05-10', 'Inspection', 'Pass', 'New vehicle inspection cleared', 8, 1);
-
--- =============================================
--- DATA RETRIEVAL CONCEPTS
--- =============================================
-
--- 1. BASIC SELECT: Retrieve all employees
-SELECT * FROM EMPLOYEE;
-
--- 2. SELECT with WHERE clause: Find vehicles that are available
-SELECT vehicle_id, vin, make, model, vehicle_year, selling_price
-FROM VEHICLE
-WHERE status = 'Available';
-
--- 3. SELECT with ORDER BY: List vehicles sorted by selling price descending
-SELECT vin, make, model, selling_price
-FROM VEHICLE
-ORDER BY selling_price DESC;
-
--- 4. SELECT with LIMIT: Get the top 3 most expensive vehicles
-SELECT vin, make, model, selling_price
-FROM VEHICLE
-ORDER BY selling_price DESC
-LIMIT 3;
-
--- 5. AGGREGATE FUNCTIONS: Count of vehicles by status
-SELECT status, COUNT(*) AS total_vehicles
-FROM VEHICLE
-GROUP BY status;
-
--- 6. AGGREGATE FUNCTIONS: Average selling price per make
-SELECT make, AVG(selling_price) AS avg_price, MIN(selling_price) AS min_price, MAX(selling_price) AS max_price
-FROM VEHICLE
-GROUP BY make;
-
--- 7. INNER JOIN: List all sales with customer and employee names
-SELECT 
-    s.sale_id,
-    s.sale_date,
-    s.total_price,
-    CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
-    CONCAT(e.first_name, ' ', e.last_name) AS employee_name,
-    s.payment_terms,
-    s.status
-FROM SALE s
-INNER JOIN CUSTOMER c ON s.customer_id = c.customer_id
-INNER JOIN EMPLOYEE e ON s.employee_id = e.employee_id;
-
--- 8. INNER JOIN: Show vehicles with their type (New or Used) and supplier
-SELECT 
-    v.vin,
-    v.make,
-    v.model,
-    v.vehicle_year,
-    v.selling_price,
-    sp.name AS supplier_name,
-    CASE 
-        WHEN nv.vehicle_id IS NOT NULL THEN 'New'
-        WHEN uv.vehicle_id IS NOT NULL THEN 'Used'
-    END AS vehicle_type
-FROM VEHICLE v
-INNER JOIN SUPPLIER sp ON v.supplier_id = sp.supplier_id
-LEFT JOIN NEW_VEHICLE nv ON v.vehicle_id = nv.vehicle_id
-LEFT JOIN USED_VEHICLE uv ON v.vehicle_id = uv.vehicle_id;
-
--- 9. LEFT JOIN: Show all customers and their addresses (including those without addresses)
-SELECT 
-    c.customer_id,
-    CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
-    a.street,
-    a.city,
-    a.state,
-    a.zip_code
-FROM CUSTOMER c
-LEFT JOIN ADDRESS a ON c.customer_id = a.customer_id;
-
--- 10. SUBQUERY: Find vehicles sold above the average selling price
-SELECT vin, make, model, selling_price
-FROM VEHICLE
-WHERE selling_price > (SELECT AVG(selling_price) FROM VEHICLE);
-
--- 11. SUBQUERY: Customers who have made purchases
-SELECT first_name, last_name, email
-FROM CUSTOMER
-WHERE customer_id IN (SELECT DISTINCT customer_id FROM SALE);
-
--- 12. SUBQUERY: Customers who have NOT made purchases
-SELECT first_name, last_name, email
-FROM CUSTOMER
-WHERE customer_id NOT IN (SELECT DISTINCT customer_id FROM SALE);
-
--- 13. AGGREGATE with HAVING: Suppliers supplying more than 1 vehicle
-SELECT sp.name AS supplier_name, COUNT(v.vehicle_id) AS vehicle_count
-FROM SUPPLIER sp
-INNER JOIN VEHICLE v ON sp.supplier_id = v.supplier_id
-GROUP BY sp.name
-HAVING COUNT(v.vehicle_id) > 1;
-
--- 14. COMPLEX JOIN: Full sale details with payment info
-SELECT 
-    s.sale_id,
-    s.sale_date,
-    CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
-    CONCAT(v.make, ' ', v.model) AS vehicle,
-    v.vin,
-    s.total_price,
-    s.payment_terms,
-    p.payment_date,
-    p.amount AS payment_amount,
-    p.method AS payment_method,
-    p.reference_number
-FROM SALE s
-INNER JOIN CUSTOMER c ON s.customer_id = c.customer_id
-INNER JOIN VEHICLE v ON s.vehicle_id = v.vehicle_id
-INNER JOIN PAYMENT p ON s.sale_id = p.sale_id
-ORDER BY s.sale_date;
-
--- 15. GROUP BY with multiple aggregates: Total revenue per employee
-SELECT 
-    CONCAT(e.first_name, ' ', e.last_name) AS employee_name,
-    COUNT(s.sale_id) AS total_sales,
-    SUM(s.total_price) AS total_revenue,
-    AVG(s.total_price) AS avg_sale_value
-FROM EMPLOYEE e
-INNER JOIN SALE s ON e.employee_id = s.employee_id
-GROUP BY e.first_name, e.last_name;
-
--- 16. DATE FUNCTIONS: Sales made in 2024
-SELECT sale_id, sale_date, total_price
-FROM SALE
-WHERE YEAR(sale_date) = 2024;
-
--- 17. COMPLIANCE CHECK results with vehicle and agency info
-SELECT 
-    cc.check_id,
-    cc.check_date,
-    cc.check_type,
-    cc.result,
-    cc.remarks,
-    CONCAT(v.make, ' ', v.model) AS vehicle,
-    v.vin,
-    a.name AS agency_name
-FROM COMPLIANCE_CHECK cc
-INNER JOIN VEHICLE v ON cc.vehicle_id = v.vehicle_id
-INNER JOIN AGENCY a ON cc.agency_id = a.agency_id
-ORDER BY cc.check_date;
-
--- 18. SUBQUERY with aggregate: Vehicles priced above their make's average
-SELECT vin, make, model, selling_price
-FROM VEHICLE v1
-WHERE selling_price > (
-    SELECT AVG(selling_price) 
-    FROM VEHICLE v2 
-    WHERE v2.make = v1.make
-);
-
--- 19. CONDITIONAL COUNT: Number of passed and failed compliance checks per check type
-SELECT 
-    check_type,
-    SUM(CASE WHEN result = 'Pass' THEN 1 ELSE 0 END) AS passed,
-    SUM(CASE WHEN result = 'Fail' THEN 1 ELSE 0 END) AS failed
-FROM COMPLIANCE_CHECK
-GROUP BY check_type;
-
--- 20. UNION: All customer names from both individual and corporate customers
-SELECT CONCAT(c.first_name, ' ', c.last_name) AS full_name, 'Individual' AS customer_type
-FROM CUSTOMER c
-INNER JOIN INDIVIDUAL_CUSTOMER ic ON c.customer_id = ic.customer_id
-UNION
-SELECT CONCAT(c.first_name, ' ', c.last_name) AS full_name, 'Corporate' AS customer_type
-FROM CUSTOMER c
-INNER JOIN CORPORATE_CUSTOMER cc ON c.customer_id = cc.customer_id;
+INSERT INTO compliance_check (check_date, check_type, result, remarks, vehicle_id, agency_id) VALUES
+('2026-06-20', 'TaxAssessment',              'Cleared', 'Import duty and VAT fully paid',        1, 1),
+('2026-06-21', 'PoliceInterpolVerification', 'Cleared', 'Chassis number verified, no flags',      1, 5),
+('2026-06-22', 'Registration',               'Cleared', 'Number plates issued: UBH 001A',         1, 3),
+('2026-06-23', 'TaxAssessment',              'Cleared', 'Import duty and VAT fully paid',        2, 2),
+('2026-06-24', 'PoliceInterpolVerification', 'Cleared', 'Chassis number verified, no flags',      2, 6),
+('2026-06-25', 'Registration',               'Cleared', 'Number plates issued: UBH 002B',         2, 4),
+('2026-06-26', 'TaxAssessment',              'Cleared', 'Import duty and VAT fully paid',        3, 1),
+('2026-06-27', 'PoliceInterpolVerification', 'Cleared', 'Chassis number verified, no flags',      3, 5),
+('2026-06-28', 'Registration',               'Cleared', 'Number plates issued: UBH 003C',         3, 3),
+('2026-06-29', 'TaxAssessment',              'Pending', 'Awaiting URA assessment appointment',    4, 2);
