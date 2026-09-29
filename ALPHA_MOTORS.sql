@@ -351,6 +351,38 @@ INSERT INTO compliance_check (check_date, check_type, result, remarks, vehicle_i
 ('2026-06-28', 'Registration',               'Cleared', 'Number plates issued: UBH 003C',         3, 3),
 ('2026-06-29', 'TaxAssessment',              'Pending', 'Awaiting URA assessment appointment',    4, 2);
 
+-- JOINS
+
+
+
+-- TRIGGERS
+
+
+
+-- STORED PROCEDURES
+
+
+
+--CONSTRAINTS
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 -- =============================================
 -- TRIGGERS ON TABLE EMPLOYEE
 -- =============================================
