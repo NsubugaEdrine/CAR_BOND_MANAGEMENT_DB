@@ -351,38 +351,9 @@ INSERT INTO compliance_check (check_date, check_type, result, remarks, vehicle_i
 ('2026-06-28', 'Registration',               'Cleared', 'Number plates issued: UBH 003C',         3, 3),
 ('2026-06-29', 'TaxAssessment',              'Pending', 'Awaiting URA assessment appointment',    4, 2);
 
--- JOINS
 
 
-
--- TRIGGERS
-
-
-
--- STORED PROCEDURES
-
-
-
---CONSTRAINTS
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+--TRIGGERS
 -- =============================================
 -- TRIGGERS ON TABLE EMPLOYEE
 -- =============================================
@@ -656,3 +627,14 @@ SELECT trigger_name, action_timing, event_manipulation, event_object_table
 FROM information_schema.triggers
 WHERE trigger_schema = 'alpha_motors'
 ORDER BY trigger_name;
+
+
+-- JOINS
+
+
+
+-- STORED PROCEDURES
+
+
+
+--CONSTRAINTS
