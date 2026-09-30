@@ -14,7 +14,8 @@ CREATE TABLE EMPLOYEE (
     last_name       VARCHAR(80) NOT NULL,
     role            VARCHAR(60) NOT NULL,
     phone           VARCHAR(30),
-    email           VARCHAR(150)
+    email           VARCHAR(150),
+    country         VARCHAR(100) DEFAULT "Uganda"
 );
 
 -- 2. CUSTOMER TABLE (Supertype)
