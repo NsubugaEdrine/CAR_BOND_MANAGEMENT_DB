@@ -635,6 +635,112 @@ ORDER BY trigger_name;
 
 
 -- STORED PROCEDURES
+DROP PROCEDURE IF EXISTS sales_made;
+DELIMITER //
+CREATE PROCEDURE sales_made(IN p_employee_id INT UNSIGNED)
+BEGIN
+    SELECT
+        e.employee_id,
+        CONCAT(e.first_name, ' ', e.last_name) AS employee_name,
+        COALESCE(SUM(s.total_price), 0.00) AS total_sales
+    FROM employee AS e
+    LEFT JOIN sale AS s
+        ON s.employee_id = e.employee_id
+       AND s.status = 'Completed'
+    WHERE e.employee_id = p_employee_id
+    GROUP BY e.employee_id, e.first_name, e.last_name;
+END//
+DELIMITER ;
+
+
+CALL sales_made(2);
+
+CREATE PROCEDURE ADD_NEW_EMPLOYEE(
+    IN p_first_name VARCHAR(80),
+    IN p_last_name  VARCHAR(80),
+    IN p_role       VARCHAR(60),
+    IN p_phone      VARCHAR(30),
+    IN p_email      VARCHAR(150)
+)
+BEGIN
+    INSERT INTO employee (first_name, last_name, role, phone, email)
+    VALUES (p_first_name, p_last_name, p_role, p_phone, p_email);
+END//
+
+CALL ADD_NEW_EMPLOYEE('Alice', 'Kizza', 'Sales Executive', '+256772000016', 'alice.kizza@alphamotors.co.ug');
+
+DELIMITER //
+CREATE PROCEDURE PROMOTE_EMPLOYEE(
+    IN p_employee_id INT UNSIGNED,
+    IN p_new_role     VARCHAR(60)
+)
+BEGIN
+    UPDATE employee
+    SET ROLE = 'P_NEW.ROLE'
+    WHERE EMPLOYEE_id =p_EMPLOYEE_ID;
+    END //
+    DELIMITER ;
+    CALL PROMOTE_EMPLOYEE(3, "Sales Manager");
+    SELECT * FROM EMPLOYEE ;
+    drop procedure if exists promote_employee;
+    DELIMITER //
+CREATE PROCEDURE PROMOTE_EMPLOYEE(
+    IN p_employee_id INT UNSIGNED,
+    IN p_new_role     VARCHAR(60)
+)
+BEGIN
+    UPDATE employee
+    SET ROLE = 'P_NEW.ROLE'
+    WHERE EMPLOYEE_id =p_EMPLOYEE_ID;
+    END //
+    DELIMITER ;
+    CALL PROMOTE_EMPLOYEE(3, "Sales Manager");
+
+
+
+DELIMITER //
+
+CREATE PROCEDURE unpaid_balance(IN p_customer_id INT UNSIGNED)
+BEGIN
+    -- 1. DECLARE the variables (The scratchpads)
+    DECLARE v_total_cost DECIMAL(10,2) DEFAULT 0.00;
+    DECLARE v_total_paid DECIMAL(10,2) DEFAULT 0.00;
+    DECLARE v_unpaid_balance DECIMAL(10,2) DEFAULT 0.00;
+
+    -- 2. SET the total cost using the FIXED price from the vehicle table
+    -- Note: Change "v.price" to whatever your actual price column is called!
+    SELECT IFNULL(SUM(v.selling_price), 0.00) 
+    INTO v_total_cost
+    FROM sale s
+    JOIN vehicle v ON s.vehicle_id = v.vehicle_id
+    WHERE s.customer_id = p_customer_id AND s.status <> 'Cancelled';
+
+    -- 3. SET the total paid using the payment table
+    SELECT IFNULL(SUM(p.amount), 0.00) 
+    INTO v_total_paid
+    FROM payment p
+    JOIN sale s ON p.sale_id = s.sale_id
+    WHERE s.customer_id = p_customer_id AND s.status <> 'Cancelled';
+
+    -- 4. Calculate the final balance
+    SET v_unpaid_balance = v_total_cost - v_total_paid;
+
+    -- 5. Display the result
+    SELECT v_total_cost AS total_cost, 
+           v_total_paid AS amount_paid, 
+           v_unpaid_balance AS unpaid_balance;
+
+END //
+
+call unpaid_balance(5);
+DELIMITER ;
+   
+drop procedure if exists unpaid_balance;
+
+call unpaid_balance(5);
+
+call sales_made(2);
+
 
 
 
