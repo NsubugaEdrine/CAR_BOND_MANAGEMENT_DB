@@ -14,7 +14,8 @@ CREATE TABLE EMPLOYEE (
     last_name       VARCHAR(80) NOT NULL,
     role            VARCHAR(60) NOT NULL,
     phone           VARCHAR(30),
-    email           VARCHAR(150)
+    email           VARCHAR(150),
+    country_code    VARCHAR(20)
 );
 
 -- 2. CUSTOMER TABLE (Supertype)
@@ -744,3 +745,13 @@ call sales_made(2);
 
 
 --CONSTRAINTS
+ALTER TABLE employee ADD CONSTRAINT uq_employee_email UNIQUE (email);
+
+ALTER TABLE employee ADD CONSTRAINT uq_employee_phone UNIQUE (phone);
+
+ALTER TABLE employee MODIFY phone VARCHAR(100) NOT NULL;
+
+ALTER TABLE employee ADD CONSTRAINT chk_employee_role CHECK (role IN ('Sales Executive', 'Sales Manager', 'Yard Manager', 'Yard Attendant', 'Compliance Officer', 'Accountant'));
+
+
+DESCRIBE employee;
