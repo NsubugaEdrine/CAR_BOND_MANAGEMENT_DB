@@ -372,6 +372,16 @@ INSERT INTO compliance_check (check_date, check_type, result, remarks, vehicle_i
 -- BEFORE triggers may change NEW.* (or read OLD.*) to modify/block the row.
 -- AFTER triggers cannot change the row - they only react to what happened.
 
+USE alpha_motors;
+
+-- =============================================
+-- SIMPLE TRIGGERS ON TABLE EMPLOYEE
+-- =============================================
+-- A trigger runs automatically when a row is inserted, updated or deleted.
+--   BEFORE trigger = checks or cleans the data first (can stop the action)
+--   AFTER trigger  = runs once the action is done (used here to save history)
+-- NEW = the new row values, OLD = the old row values.
+
 DROP TRIGGER IF EXISTS trg_employee_before_insert;
 DROP TRIGGER IF EXISTS trg_employee_after_insert;
 DROP TRIGGER IF EXISTS trg_employee_before_update;
@@ -381,258 +391,224 @@ DROP TRIGGER IF EXISTS trg_employee_after_delete;
 
 DELIMITER //
 
--- ---------------------------------------------------------------------
--- 1. BEFORE INSERT ON EMPLOYEE
--- Real life: HR receives "  kimani  okello ", phone "+256 77 200 0011" and a
---            wrong role "Cashier". Nothing is stored until it is tidy and legal.
--- Goal: clean the incoming data, then reject the row with our own message.
--- ---------------------------------------------------------------------
+-- 1. BEFORE INSERT: remove extra spaces and check the role
 CREATE TRIGGER trg_employee_before_insert
 BEFORE INSERT ON employee
 FOR EACH ROW
 BEGIN
-    -- TIDY UP: remove padding, standardise capitalisation and case
-    SET NEW.first_name = TRIM(NEW.first_name),
-        NEW.last_name  = TRIM(NEW.last_name),
-        NEW.role       = CONCAT(UPPER(LEFT(TRIM(NEW.role), 1)),
-                                SUBSTRING(TRIM(NEW.role), 2)),
-        NEW.phone      = NULLIF(TRIM(NEW.phone), ''),
-        NEW.email      = LOWER(NULLIF(TRIM(NEW.email), ''));
+    SET NEW.first_name = TRIM(NEW.first_name);
+    SET NEW.last_name  = TRIM(NEW.last_name);
 
-    -- RULE 1: a real name is mandatory
-    IF NEW.first_name = '' OR NEW.last_name = '' THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: first_name and last_name are required.';
-    END IF;
-
-    -- RULE 2: only approved job roles may be stored
     IF NEW.role NOT IN ('Sales Executive', 'Sales Manager', 'Yard Manager',
                         'Yard Attendant', 'Compliance Officer', 'Accountant') THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: role must be Sales Executive, Sales Manager, Yard Manager, Yard Attendant, Compliance Officer or Accountant.';
-    END IF;
-
-    -- RULE 3: email must look like an email address
-    IF NEW.email IS NOT NULL AND NEW.email NOT LIKE '_%@_%._%' THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: email is not a valid address.';
-    END IF;
-
-    -- RULE 4: work email must be on the company domain
-    IF NEW.email IS NOT NULL AND NEW.email NOT LIKE '%@alphamotors.co.ug' THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: work email must end with @alphamotors.co.ug.';
-    END IF;
-
-    -- RULE 5: phone must be in international format, e.g. +256772000001
-    IF NEW.phone IS NOT NULL AND NEW.phone NOT REGEXP '^[+][0-9]{7,15}$' THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: phone must be in international format, e.g. +256772000001.';
-    END IF;
-
-    -- RULE 6: one employee, one email address
-    IF NEW.email IS NOT NULL
-       AND EXISTS (SELECT 1 FROM employee WHERE email = NEW.email) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: that email is already used by another employee.';
+            SET MESSAGE_TEXT = 'Invalid role.';
     END IF;
 END//
 
--- ---------------------------------------------------------------------
--- 2. AFTER INSERT ON EMPLOYEE
--- Real life: the staff list is not just "who exists now" - HR must be able
---            to prove who was hired and when.
--- Goal: record the new employee in the audit trail.
--- ---------------------------------------------------------------------
+-- 2. AFTER INSERT: save the new employee in the audit table
 CREATE TRIGGER trg_employee_after_insert
 AFTER INSERT ON employee
 FOR EACH ROW
 BEGIN
     INSERT INTO employee_audit
-        (employee_id, action_type,
-         new_first_name, new_last_name, new_role, new_phone, new_email)
+        (employee_id, action_type, new_first_name, new_last_name, new_role, new_phone, new_email)
     VALUES
-        (NEW.employee_id, 'INSERT',
-         NEW.first_name, NEW.last_name, NEW.role, NEW.phone, NEW.email);
+        (NEW.employee_id, 'INSERT', NEW.first_name, NEW.last_name, NEW.role, NEW.phone, NEW.email);
 END//
 
--- ---------------------------------------------------------------------
--- 3. BEFORE UPDATE ON EMPLOYEE
--- Real life: a clerk "helpfully" renumbers an employee, or two staff end up
---            sharing one mailbox, or the only Sales Manager is demployed.
--- Goal: freeze the identity, re-run the validation rules, block illegal moves.
--- ---------------------------------------------------------------------
+-- 3. BEFORE UPDATE: employee_id must not change, and the role must stay valid
 CREATE TRIGGER trg_employee_before_update
 BEFORE UPDATE ON employee
 FOR EACH ROW
 BEGIN
-    -- RULE 1: the employee number is permanent
     IF NEW.employee_id <> OLD.employee_id THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: employee_id cannot be changed once assigned.';
+            SET MESSAGE_TEXT = 'employee_id cannot be changed.';
     END IF;
 
-    -- TIDY UP: the same normalisation as on insert
-    SET NEW.first_name = TRIM(NEW.first_name),
-        NEW.last_name  = TRIM(NEW.last_name),
-        NEW.role       = CONCAT(UPPER(LEFT(TRIM(NEW.role), 1)),
-                                SUBSTRING(TRIM(NEW.role), 2)),
-        NEW.phone      = NULLIF(TRIM(NEW.phone), ''),
-        NEW.email      = LOWER(NULLIF(TRIM(NEW.email), ''));
-
-    -- RULE 2: role must still be one of the approved roles
     IF NEW.role NOT IN ('Sales Executive', 'Sales Manager', 'Yard Manager',
                         'Yard Attendant', 'Compliance Officer', 'Accountant') THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: role must be Sales Executive, Sales Manager, Yard Manager, Yard Attendant, Compliance Officer or Accountant.';
-    END IF;
-
-    -- RULE 3: email must still be a valid company address
-    IF NEW.email IS NOT NULL
-       AND (NEW.email NOT LIKE '_%@_%._%' OR NEW.email NOT LIKE '%@alphamotors.co.ug') THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: work email must be a valid address ending with @alphamotors.co.ug.';
-    END IF;
-
-    -- RULE 4: phone must still be in international format
-    IF NEW.phone IS NOT NULL AND NEW.phone NOT REGEXP '^[+][0-9]{7,15}$' THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: phone must be in international format, e.g. +256772000001.';
-    END IF;
-
-    -- RULE 5: the new email must not already belong to a colleague
-    IF NEW.email IS NOT NULL
-       AND EXISTS (SELECT 1 FROM employee
-                    WHERE email = NEW.email
-                      AND employee_id <> OLD.employee_id) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: that email is already used by another employee.';
-    END IF;
-
-    -- RULE 6: the yard must always keep at least one Sales Manager
-    IF OLD.role = 'Sales Manager' AND NEW.role <> 'Sales Manager'
-       AND (SELECT COUNT(*) FROM employee WHERE role = 'Sales Manager') <= 1 THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: the last Sales Manager cannot be demoted.';
+            SET MESSAGE_TEXT = 'Invalid role.';
     END IF;
 END//
 
--- ---------------------------------------------------------------------
--- 4. AFTER UPDATE ON EMPLOYEE
--- Real life: a payslip reprint must show what the record used to say.
--- Goal: store a full before/after snapshot of every real change.
--- ---------------------------------------------------------------------
+-- 4. AFTER UPDATE: save the old and new values in the audit table
 CREATE TRIGGER trg_employee_after_update
 AFTER UPDATE ON employee
 FOR EACH ROW
 BEGIN
-    -- only log when something actually changed (so a no-op UPDATE is ignored).
-    -- BINARY is used because utf8mb4_0900_ai_ci compares case-insensitively,
-    -- which would hide a real change such as 'Stephen' -> 'STEPHEN'.
-    IF NOT (BINARY OLD.first_name <=> BINARY NEW.first_name
-       AND BINARY OLD.last_name  <=> BINARY NEW.last_name
-       AND BINARY OLD.role       <=> BINARY NEW.role
-       AND BINARY OLD.phone      <=> BINARY NEW.phone
-       AND BINARY OLD.email      <=> BINARY NEW.email) THEN
-
-        INSERT INTO employee_audit
-            (employee_id, action_type,
-             old_first_name, old_last_name, old_role, old_phone, old_email,
-             new_first_name, new_last_name, new_role, new_phone, new_email)
-        VALUES
-            (OLD.employee_id, 'UPDATE',
-             OLD.first_name, OLD.last_name, OLD.role, OLD.phone, OLD.email,
-             NEW.first_name, NEW.last_name, NEW.role, NEW.phone, NEW.email);
-    END IF;
+    INSERT INTO employee_audit
+        (employee_id, action_type,
+         old_first_name, old_last_name, old_role, old_phone, old_email,
+         new_first_name, new_last_name, new_role, new_phone, new_email)
+    VALUES
+        (OLD.employee_id, 'UPDATE',
+         OLD.first_name, OLD.last_name, OLD.role, OLD.phone, OLD.email,
+         NEW.first_name, NEW.last_name, NEW.role, NEW.phone, NEW.email);
 END//
 
--- ---------------------------------------------------------------------
--- 5. BEFORE DELETE ON EMPLOYEE
--- Real life: you cannot sack the salesman who closed the three biggest
---            deals of the year - his sales history must stay attributable.
--- Goal: block the DELETE and explain why, instead of an FK error.
--- ---------------------------------------------------------------------
+-- 5. BEFORE DELETE: do not delete an employee who has made a sale
 CREATE TRIGGER trg_employee_before_delete
 BEFORE DELETE ON employee
 FOR EACH ROW
 BEGIN
-    -- RULE 1: nobody who appears on a sale may be removed
     IF EXISTS (SELECT 1 FROM sale WHERE employee_id = OLD.employee_id) THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: cannot delete an employee who is linked to one or more sales.';
-    END IF;
-
-    -- RULE 2: the yard must always keep at least one Sales Manager
-    IF OLD.role = 'Sales Manager'
-       AND (SELECT COUNT(*) FROM employee WHERE role = 'Sales Manager') <= 1 THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'EMPLOYEE ERROR: the last Sales Manager cannot be deleted.';
+            SET MESSAGE_TEXT = 'Cannot delete an employee who has sales.';
     END IF;
 END//
 
--- ---------------------------------------------------------------------
--- 6. AFTER DELETE ON EMPLOYEE
--- Real life: ex-staff records are archived, not erased.
--- Goal: keep the removed row in the audit trail.
--- ---------------------------------------------------------------------
+-- 6. AFTER DELETE: save the deleted employee in the audit table
 CREATE TRIGGER trg_employee_after_delete
 AFTER DELETE ON employee
 FOR EACH ROW
 BEGIN
     INSERT INTO employee_audit
-        (employee_id, action_type,
-         old_first_name, old_last_name, old_role, old_phone, old_email)
+        (employee_id, action_type, old_first_name, old_last_name, old_role, old_phone, old_email)
     VALUES
-        (OLD.employee_id, 'DELETE',
-         OLD.first_name, OLD.last_name, OLD.role, OLD.phone, OLD.email);
+        (OLD.employee_id, 'DELETE', OLD.first_name, OLD.last_name, OLD.role, OLD.phone, OLD.email);
 END//
 
 DELIMITER ;
 
 -- =============================================
--- CHECKING THE TRIGGERS
+-- TESTS
 -- =============================================
 
--- T1: tidy + valid -> stored, audit row written
+-- T1: works, spaces are trimmed, audit row is written
 INSERT INTO employee (first_name, last_name, role, phone, email)
-VALUES ('  grace ', ' NABBIRA ', 'accountant', '+256772000011', 'GRACE.Nabbira@AlphaMotors.co.ug');
+VALUES ('  Grace ', ' Nabbira ', 'Accountant', '+256772000011', 'grace.nabbira@alphamotors.co.ug');
 
--- T2: bad role -> refused by trg_employee_before_insert
+-- T2: fails, bad role
 INSERT INTO employee (first_name, last_name, role, phone, email)
 VALUES ('Peter', 'Odeke', 'Cashier', '+256772000012', 'peter.odeke@alphamotors.co.ug');
 
--- T3: duplicate email -> refused
-INSERT INTO employee (first_name, last_name, role, phone, email)
-VALUES ('John', 'Sseba', 'Accountant', '+256772000013', 'alveen.mutebi@alphamotors.co.ug');
-
--- T4: employee with sales cannot be deleted -> refused
+-- T3: fails, employee 1 has sales
 DELETE FROM employee WHERE employee_id = 1;
 
--- T5: free-text phone -> refused
-INSERT INTO employee (first_name, last_name, role, phone, email)
-VALUES ('Ruth', 'Ayikoi', 'Yard Attendant', '0772000014', 'ruth.ayikoi@alphamotors.co.ug');
-
--- T6: a clean change -> before/after snapshot logged
+-- T4: works, old and new values are logged
 UPDATE employee SET phone = '+256772000015' WHERE employee_id = 11;
 
--- T7: an employee with no sales can be deleted -> archive row logged
+-- T5: works, employee 11 has no sales, delete is logged
 DELETE FROM employee WHERE employee_id = 11;
-
-SELECT * FROM employee;
 
 SELECT * FROM employee_audit;
 
-SHOW TRIGGERS LIKE 'employee';
-
-SELECT trigger_name, action_timing, event_manipulation, event_object_table
-FROM information_schema.triggers
-WHERE trigger_schema = 'alpha_motors'
-ORDER BY trigger_name;
-
-
 -- JOINS
 
+USE alpha_motors;
 
+-- =============================================
+-- JOINS (alpha_motors)
+-- INNER JOIN = only rows that match in both tables
+-- LEFT JOIN  = all rows from the left table, even with no match (NULL on the right)
+-- =============================================
+
+-- 1. INNER JOIN: each sale with the employee who made it
+SELECT s.sale_id, s.sale_date, s.total_price,
+       e.first_name, e.last_name
+FROM sale s
+INNER JOIN employee e ON s.employee_id = e.employee_id;
+
+-- 2. INNER JOIN: each sale with the customer who bought
+SELECT s.sale_id, s.total_price,
+       c.first_name, c.customer_type
+FROM sale s
+INNER JOIN customer c ON s.customer_id = c.customer_id;
+
+-- 3. INNER JOIN: each sale with the vehicle sold
+SELECT s.sale_id, v.make, v.model, v.year, s.total_price
+FROM sale s
+INNER JOIN vehicle v ON s.vehicle_id = v.vehicle_id;
+
+-- 4. INNER JOIN: each vehicle with its supplier
+SELECT v.vehicle_id, v.make, v.model, sp.name AS supplier, sp.country
+FROM vehicle v
+INNER JOIN supplier sp ON v.supplier_id = sp.supplier_id;
+
+-- 5. INNER JOIN: each payment with its sale
+SELECT p.payment_id, p.amount, p.method, s.sale_id, s.total_price
+FROM payment p
+INNER JOIN sale s ON p.sale_id = s.sale_id;
+
+-- 6. INNER JOIN: customer with their individual details
+SELECT c.customer_id, c.first_name, c.last_name,
+       i.date_of_birth, i.occupation
+FROM customer c
+INNER JOIN individual_customer i ON c.customer_id = i.customer_id;
+
+-- 7. INNER JOIN: used vehicles with their extra details
+SELECT v.vehicle_id, v.make, v.model, u.mileage, u.condition_grade
+FROM vehicle v
+INNER JOIN used_vehicle u ON v.vehicle_id = u.vehicle_id;
+
+-- 8. LEFT JOIN: all employees, including those with no sales
+SELECT e.employee_id, e.first_name, e.last_name, s.sale_id
+FROM employee e
+LEFT JOIN sale s ON e.employee_id = s.employee_id;
+
+-- 9. LEFT JOIN: employees who have NEVER made a sale
+SELECT e.employee_id, e.first_name, e.last_name
+FROM employee e
+LEFT JOIN sale s ON e.employee_id = s.employee_id
+WHERE s.sale_id IS NULL;
+
+-- 10. LEFT JOIN: vehicles that have not been sold
+SELECT v.vehicle_id, v.make, v.model, v.status
+FROM vehicle v
+LEFT JOIN sale s ON v.vehicle_id = s.vehicle_id
+WHERE s.sale_id IS NULL;
+
+-- 11. LEFT JOIN: sales with no payment yet
+SELECT s.sale_id, s.total_price, s.status
+FROM sale s
+LEFT JOIN payment p ON s.sale_id = p.sale_id
+WHERE p.payment_id IS NULL;
+
+-- 12. THREE TABLES: compliance check, vehicle and agency
+SELECT cc.check_id, cc.check_type, cc.result,
+       v.make, v.model,
+       a.name AS agency
+FROM compliance_check cc
+INNER JOIN vehicle v ON cc.vehicle_id = v.vehicle_id
+INNER JOIN agency a  ON cc.agency_id  = a.agency_id;
+
+-- 13. FOUR TABLES: full sale report
+SELECT s.sale_id, s.sale_date,
+       CONCAT(e.first_name, ' ', e.last_name) AS employee,
+       c.first_name AS customer,
+       v.make, v.model,
+       s.total_price, s.status
+FROM sale s
+INNER JOIN employee e ON s.employee_id = e.employee_id
+INNER JOIN customer c ON s.customer_id = c.customer_id
+INNER JOIN vehicle v  ON s.vehicle_id  = v.vehicle_id;
+
+-- 14. JOIN + GROUP BY: total completed sales per employee
+SELECT e.employee_id,
+       CONCAT(e.first_name, ' ', e.last_name) AS employee,
+       COUNT(s.sale_id) AS number_of_sales,
+       COALESCE(SUM(s.total_price), 0) AS total_sales
+FROM employee e
+LEFT JOIN sale s ON e.employee_id = s.employee_id
+                AND s.status = 'Completed'
+GROUP BY e.employee_id, e.first_name, e.last_name;
+
+-- 15. JOIN + GROUP BY: total paid per sale
+SELECT s.sale_id, s.total_price,
+       SUM(p.amount) AS total_paid,
+       s.total_price - SUM(p.amount) AS balance
+FROM sale s
+INNER JOIN payment p ON s.sale_id = p.sale_id
+GROUP BY s.sale_id, s.total_price;
+
+-- 16. SELF JOIN: pairs of employees with the same role
+SELECT a.first_name AS employee_1, b.first_name AS employee_2, a.role
+FROM employee a
+INNER JOIN employee b ON a.role = b.role
+                     AND a.employee_id < b.employee_id;
 
 -- STORED PROCEDURES
 DROP PROCEDURE IF EXISTS sales_made;
