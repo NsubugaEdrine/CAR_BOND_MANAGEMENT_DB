@@ -14,7 +14,15 @@ CREATE TABLE EMPLOYEE (
     last_name       VARCHAR(80) NOT NULL,
     role            VARCHAR(60) NOT NULL,
     phone           VARCHAR(30),
-    email           VARCHAR(150)
+    email           VARCHAR(150),
+    CONSTRAINT uq_employee_phone UNIQUE (phone),
+    CONSTRAINT uq_employee_email UNIQUE (email),
+    CONSTRAINT chk_employee_first_name CHECK (CHAR_LENGTH(TRIM(first_name)) > 0),
+    CONSTRAINT chk_employee_last_name CHECK (CHAR_LENGTH(TRIM(last_name)) > 0),
+    CONSTRAINT chk_employee_role CHECK (role IN (
+        'Sales Executive', 'Sales Manager', 'Yard Manager',
+        'Yard Attendant', 'Compliance Officer', 'Accountant'
+    ))
 );
 
 -- 2. CUSTOMER TABLE (Supertype)
